@@ -9,7 +9,9 @@ export default defineConfig(async ({ command }) => {
     tailwindcss(),
   ];
 
-  if (command === 'build') {
+  const isProd = command === 'build';
+
+  if (isProd) {
     const { VitePWA } = await import('vite-plugin-pwa');
     plugins.push(
       VitePWA({
@@ -23,7 +25,7 @@ export default defineConfig(async ({ command }) => {
           'pwa-maskable-512x512.png',
         ],
         manifest: {
-          id: '/',
+          id: './',
           name: 'Molla AI Assistant',
           short_name: 'Molla AI',
           description: 'Real-time, voice-to-voice AI assistant with a witty, sassy, and confident persona powered by Gemini Live API.',
@@ -31,23 +33,23 @@ export default defineConfig(async ({ command }) => {
           background_color: '#07090e',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: '/',
-          scope: '/',
+          start_url: './',
+          scope: './',
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: 'pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: 'pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -92,6 +94,7 @@ export default defineConfig(async ({ command }) => {
   }
 
   return {
+    base: './',
     plugins,
     resolve: {
       alias: {

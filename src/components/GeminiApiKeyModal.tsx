@@ -49,11 +49,13 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
 
     // Check server status
     fetch('/api/config/gemini-key')
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        setCurrentServerStatus(data);
-        if (!localKey && data.hasKey) {
-          // Server already has an environment key
+        if (data) {
+          setCurrentServerStatus(data);
+          if (!localKey && data.hasKey) {
+            // Server already has an environment key
+          }
         }
       })
       .catch((err) => console.warn('Could not check server API key status:', err));

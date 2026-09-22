@@ -170,9 +170,9 @@ export default function App() {
       }).catch(() => {});
     } else {
       fetch('/api/config/gemini-key')
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
-          if (data.hasKey) {
+          if (data?.hasKey) {
             setHasGeminiKey(true);
           }
         })
