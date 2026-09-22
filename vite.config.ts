@@ -94,7 +94,7 @@ export default defineConfig(async ({ command }) => {
   }
 
   return {
-    base: './',
+    base: process.env.BASE_URL || (process.env.GITHUB_REPOSITORY ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/` : './'),
     plugins,
     resolve: {
       alias: {
