@@ -3,6 +3,7 @@ import { AudioStreamer } from './audioStreamer';
 import { AudioRecorder } from './audioRecorder';
 import { base64ChunksToWavBlob } from './audioUtils';
 import { getStoredGeminiApiKey, loadMemories, loadAssistantConfig } from '../components/maya/mayaStorage';
+import { isStaticHost, getBackendBaseUrl, callDirectGeminiChat, speakTextWithBrowser } from './directGemini';
 
 export interface LiveSessionCallbacks {
   onStateChange: (state: ConnectionState) => void;
@@ -29,6 +30,8 @@ export class LiveSession {
   private localSpeechRecognizer: any = null;
   private heartbeatTimer: any = null;
   private isIntentionalDisconnect: boolean = false;
+  private isBrowserVoiceMode: boolean = false;
+  private activeBrowserUtterance: SpeechSynthesisUtterance | null = null;
 
   // Molla turn tracking
   private currentMollaTurnChunks: string[] = [];
@@ -101,8 +104,19 @@ export class LiveSession {
       });
       await this.streamer.init();
 
+      // Check if running on static host (e.g. GitHub Pages) with no custom backend
+      const customBackend = getBackendBaseUrl();
+      const isStatic = isStaticHost() && !customBackend;
+
+      if (isStatic) {
+        console.log('[Molla Live] Running on static host -> starting Direct Browser Voice Engine');
+        await this.startBrowserVoiceEngine(voice, lang);
+        return;
+      }
+
       // Determine websocket protocol and url with voice and language parameters
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const backendHost = customBackend ? customBackend.replace(/^https?:\/\//, '') : window.location.host;
+      const protocol = (customBackend ? customBackend.startsWith('https') : window.location.protocol === 'https:') ? 'wss:' : 'ws:';
       const storedKey = getStoredGeminiApiKey();
       const keyParam = storedKey ? `&apiKey=${encodeURIComponent(storedKey)}` : '';
       const memories = loadMemories();
@@ -112,7 +126,7 @@ export class LiveSession {
       const gfParam = assistantCfg.girlfriendMode
         ? `&girlfriendMode=true&petName=${encodeURIComponent(assistantCfg.petName || 'Sweetheart')}&romanticStyle=${encodeURIComponent(assistantCfg.romanticStyle || 'Sweet & Caring')}`
         : '';
-      const wsUrl = `${protocol}//${window.location.host}/live?voice=${encodeURIComponent(voice)}&lang=${encodeURIComponent(effectiveLang)}${keyParam}${memoriesParam}${gfParam}`;
+      const wsUrl = `${protocol}//${backendHost}/live?voice=${encodeURIComponent(voice)}&lang=${encodeURIComponent(effectiveLang)}${keyParam}${memoriesParam}${gfParam}`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = async () => {
@@ -306,6 +320,14 @@ export class LiveSession {
           this.disconnect();
           return;
         }
+
+        // If WebSocket failed during initial connection (e.g. static GitHub Pages host or server unreachable):
+        if (this.state === 'connecting') {
+          console.warn('[Molla Live] WebSocket unavailable on host, falling back to Browser Voice Engine');
+          this.startBrowserVoiceEngine(voice, lang);
+          return;
+        }
+
         // Only show notification if session closed unexpectedly while active
         if (ev.code !== 1000 && ev.code !== 1005 && this.state !== 'disconnected') {
           this.callbacks.onError(ev.reason || 'Molla Live session ended. Tap the call button to reconnect.');
@@ -397,6 +419,10 @@ export class LiveSession {
       this.ws.send(JSON.stringify({ type: 'text', text }));
       return true;
     }
+    if (this.isBrowserVoiceMode) {
+      this.handleBrowserVoiceTurn(text);
+      return true;
+    }
     return false;
   }
 
@@ -408,6 +434,11 @@ export class LiveSession {
         mimeType,
         text: text || '',
       }));
+      return true;
+    }
+    if (this.isBrowserVoiceMode) {
+      const promptText = text || 'Please describe what you see in this image.';
+      this.handleBrowserVisualTurn(base64Image, mimeType, promptText);
       return true;
     }
     return false;
@@ -427,6 +458,13 @@ export class LiveSession {
 
   public interrupt() {
     this.streamer?.stopAndClear();
+    if (this.isBrowserVoiceMode || (typeof window !== 'undefined' && 'speechSynthesis' in window)) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+      this.activeBrowserUtterance = null;
+      this.isSpeaking = false;
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'interrupt' }));
     }
@@ -437,6 +475,13 @@ export class LiveSession {
     this.isPlaybackPaused = paused;
     if (paused) {
       this.streamer?.stopAndClear();
+      if (this.isBrowserVoiceMode || (typeof window !== 'undefined' && 'speechSynthesis' in window)) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch {}
+        this.activeBrowserUtterance = null;
+        this.isSpeaking = false;
+      }
       // Completely release hardware microphone tracks so keyboard voice typing gets exclusive OS mic access
       this.recorder?.pauseHardware();
       try {
@@ -488,6 +533,160 @@ export class LiveSession {
     this.currentUserAccumulatedText = '';
   }
 
+  private async startBrowserVoiceEngine(voice: VoiceOption, lang: LanguageCode): Promise<void> {
+    const activeKey = getStoredGeminiApiKey();
+    if (!activeKey) {
+      this.setState('disconnected');
+      window.dispatchEvent(new CustomEvent('open-gemini-key-modal', { detail: { reason: 'missing_key' } }));
+      this.callbacks.onError('Please tap the 🔑 API Key button (top right) to enter your free Gemini API Key.');
+      return;
+    }
+
+    try {
+      this.setState('connecting');
+      this.isBrowserVoiceMode = true;
+
+      // Start recorder for audio visualizer RMS and frequency bars
+      this.recorder = new AudioRecorder(() => {
+        // Stream handled locally
+      });
+      await this.recorder.start();
+
+      this.setState('listening');
+      this.initLocalSpeechRecognition(lang);
+    } catch (err: any) {
+      console.error('[Molla Live] Browser voice engine start error:', err);
+      this.callbacks.onError('Microphone access is required. Please grant mic permissions and tap again.');
+      this.disconnect();
+    }
+  }
+
+  private async handleBrowserVoiceTurn(userText: string) {
+    if (this.isSpeaking || this.state === 'speaking') return;
+
+    this.finalizeCurrentUserTurn();
+    this.setState('speaking');
+
+    const mollaMsgId = `live_molla_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    this.currentMollaMessageId = mollaMsgId;
+
+    try {
+      const asstCfg = loadAssistantConfig();
+      const replyText = await callDirectGeminiChat({
+        message: userText,
+        lang: asstCfg.language || this.currentLang || 'bn',
+        memories: loadMemories(),
+        girlfriendMode: asstCfg.girlfriendMode,
+        petName: asstCfg.petName,
+        romanticStyle: asstCfg.romanticStyle,
+      });
+
+      if (!replyText || this.state === 'disconnected') {
+        if (this.state !== 'disconnected') this.setState('listening');
+        return;
+      }
+
+      this.callbacks.onTranscript?.({
+        id: mollaMsgId,
+        sender: 'molla',
+        text: replyText,
+        timestamp: Date.now(),
+        isDelta: false,
+        isLiveTurn: true,
+        isVoice: true,
+        isInterim: false,
+      });
+
+      this.activeBrowserUtterance = speakTextWithBrowser(
+        replyText,
+        this.currentLang,
+        () => {
+          this.isSpeaking = true;
+        },
+        () => {
+          this.isSpeaking = false;
+          this.activeBrowserUtterance = null;
+          this.callbacks.onTurnComplete?.();
+          if (this.state !== 'disconnected' && !this.isPlaybackPaused) {
+            this.setState('listening');
+          }
+        }
+      );
+    } catch (err: any) {
+      console.warn('[Molla Live] Browser voice conversation notice:', err?.message || err);
+      this.isSpeaking = false;
+      if (this.state !== 'disconnected') {
+        this.setState('listening');
+      }
+      if (err?.message?.includes('API Key')) {
+        this.callbacks.onError(err.message);
+      }
+    }
+  }
+
+  private async handleBrowserVisualTurn(base64Image: string, mimeType: string, promptText: string) {
+    if (this.isSpeaking || this.state === 'speaking') return;
+
+    this.setState('speaking');
+    const mollaMsgId = `live_molla_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    this.currentMollaMessageId = mollaMsgId;
+
+    try {
+      const asstCfg = loadAssistantConfig();
+      const replyText = await callDirectGeminiChat({
+        message: promptText,
+        image: base64Image,
+        mimeType,
+        lang: asstCfg.language || this.currentLang || 'bn',
+        memories: loadMemories(),
+        girlfriendMode: asstCfg.girlfriendMode,
+        petName: asstCfg.petName,
+        romanticStyle: asstCfg.romanticStyle,
+      });
+
+      if (!replyText || this.state === 'disconnected') {
+        if (this.state !== 'disconnected') this.setState('listening');
+        return;
+      }
+
+      this.callbacks.onTranscript?.({
+        id: mollaMsgId,
+        sender: 'molla',
+        text: replyText,
+        timestamp: Date.now(),
+        isDelta: false,
+        isLiveTurn: true,
+        isVoice: true,
+        isInterim: false,
+      });
+
+      this.activeBrowserUtterance = speakTextWithBrowser(
+        replyText,
+        this.currentLang,
+        () => {
+          this.isSpeaking = true;
+        },
+        () => {
+          this.isSpeaking = false;
+          this.activeBrowserUtterance = null;
+          this.callbacks.onTurnComplete?.();
+          if (this.state !== 'disconnected' && !this.isPlaybackPaused) {
+            this.setState('listening');
+          }
+        }
+      );
+    } catch (err: any) {
+      console.warn('[Molla Live] Visual turn notice:', err?.message || err);
+      this.isSpeaking = false;
+      if (this.state !== 'disconnected') {
+        this.setState('listening');
+      }
+      if (err?.message?.includes('API Key')) {
+        this.callbacks.onError(err.message);
+      }
+    }
+  }
+
   private initLocalSpeechRecognition(lang: LanguageCode) {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -535,6 +734,11 @@ export class LiveSession {
             isVoice: true,
             isInterim: !finalText,
           });
+
+          // In Browser Voice Mode, immediately trigger response on complete final speech!
+          if (finalText && this.isBrowserVoiceMode) {
+            this.handleBrowserVoiceTurn(finalText);
+          }
         }
       };
 
@@ -568,6 +772,13 @@ export class LiveSession {
 
   public disconnect(): void {
     this.isIntentionalDisconnect = true;
+    this.isBrowserVoiceMode = false;
+    if (this.activeBrowserUtterance || (typeof window !== 'undefined' && 'speechSynthesis' in window)) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+      this.activeBrowserUtterance = null;
+    }
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;

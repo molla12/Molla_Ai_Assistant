@@ -143,10 +143,37 @@ export const GeminiApiKeyModal: React.FC<GeminiApiKeyModalProps> = ({
         });
       }
     } catch {
-      setTestResult({
-        success: false,
-        message: 'Could not connect to the server. Please try again.',
-      });
+      // If server is not reachable (e.g. running on GitHub Pages static host), verify directly with Google AI Studio!
+      try {
+        const testRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(keyToTest)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'Hello' }] }],
+            }),
+          }
+        );
+
+        if (testRes.ok) {
+          setTestResult({
+            success: true,
+            message: 'Excellent! API Key is verified directly with Google AI Studio. Real-time live voice ready!',
+          });
+        } else {
+          const errData = await testRes.json().catch(() => ({}));
+          setTestResult({
+            success: false,
+            message: errData?.error?.message || 'Could not verify API Key with Google. Please check your key.',
+          });
+        }
+      } catch {
+        setTestResult({
+          success: false,
+          message: 'Could not connect to Google AI Studio. Please check your internet connection.',
+        });
+      }
     } finally {
       setIsTesting(false);
     }

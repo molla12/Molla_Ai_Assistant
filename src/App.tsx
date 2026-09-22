@@ -47,6 +47,7 @@ import { getStoredGeminiApiKey, loadMemories, loadAssistantConfig } from './comp
 import { useProactiveMemoryQuestions, ProactiveQuestionEvent } from './hooks/useProactiveMemoryQuestions';
 import { voicePlayer } from './services/voicePlayer';
 import { loadSavedSessions, saveSessionsToStorage } from './services/chatSessions';
+import { isStaticHost, callDirectGeminiChat } from './services/directGemini';
 import { AlertCircle, X } from 'lucide-react';
 
 function resolveLanguageCode(str?: string): LanguageCode {
@@ -678,50 +679,80 @@ export default function App() {
         return;
       }
 
-      // If disconnected, call backend /api/chat and speak answer
+      // If disconnected, call backend /api/chat or direct Gemini on static hosting
       try {
         const asstCfg = loadAssistantConfig();
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: text,
-            image,
-            lang: asstCfg.language || language || 'bn',
-            memories: loadMemories(),
-            girlfriendMode: asstCfg.girlfriendMode,
-            petName: asstCfg.petName,
-            romanticStyle: asstCfg.romanticStyle,
-          }),
-        });
+        let replyText = '';
 
-        const contentType = res.headers.get('content-type') || '';
-        let data: any = null;
+        if (!isStaticHost()) {
+          try {
+            const res = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: text,
+                image,
+                lang: asstCfg.language || language || 'bn',
+                memories: loadMemories(),
+                girlfriendMode: asstCfg.girlfriendMode,
+                petName: asstCfg.petName,
+                romanticStyle: asstCfg.romanticStyle,
+              }),
+            });
 
-        if (contentType.includes('application/json')) {
-          data = await res.json().catch(() => null);
-        } else {
-          await res.text().catch(() => '');
+            const contentType = res.headers.get('content-type') || '';
+            let data: any = null;
+
+            if (contentType.includes('application/json')) {
+              data = await res.json().catch(() => null);
+            } else {
+              await res.text().catch(() => '');
+            }
+
+            if (res.ok && data && data.reply) {
+              replyText = data.reply;
+            }
+          } catch {}
         }
 
-        if (res.ok && data && data.reply) {
+        // Direct client-side Gemini fallback (e.g. for GitHub Pages or offline server)
+        if (!replyText) {
+          try {
+            replyText = await callDirectGeminiChat({
+              message: text,
+              image,
+              lang: asstCfg.language || language || 'bn',
+              memories: loadMemories(),
+              girlfriendMode: asstCfg.girlfriendMode,
+              petName: asstCfg.petName,
+              romanticStyle: asstCfg.romanticStyle,
+            });
+          } catch (directErr: any) {
+            console.warn('[App] Direct Gemini chat notice:', directErr);
+            if (directErr?.message?.includes('API Key')) {
+              setErrorMessage(directErr.message);
+            }
+          }
+        }
+
+        if (replyText) {
           const mollaMsgId = `molla_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           const mollaMsg: TranscriptItem = {
             id: mollaMsgId,
             sender: 'molla',
-            text: data.reply,
+            text: replyText,
             timestamp: Date.now(),
             isVoice: true,
           };
           setTranscripts((prev) => [...prev, mollaMsg]);
 
-          voicePlayer.togglePlay(mollaMsgId, data.reply, undefined, voice).then((url) => {
+          voicePlayer.togglePlay(mollaMsgId, replyText, undefined, voice).then((url) => {
             if (url) {
               handleUpdateAudioUrl(mollaMsgId, url);
             }
           });
         } else {
-          const fallbackReply = 'I understand what you said. Let us discuss this further!';
+          const fallbackReply = 'আমি তোমার কথা বুঝতে পেরেছি। চলো এই বিষয়ে বিস্তারিত কথা বলি!';
           const mollaMsgId = `molla_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           setTranscripts((prev) => [
             ...prev,
