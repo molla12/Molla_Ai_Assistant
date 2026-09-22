@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e131f"/>
+      <stop offset="50%" stop-color="#07090e"/>
+      <stop offset="100%" stop-color="#140b18"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="50%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="orbCore" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffedd5"/>
+      <stop offset="40%" stop-color="#fb7185"/>
+      <stop offset="80%" stop-color="#e11d48"/>
+      <stop offset="100%" stop-color="#4c0519"/>
+    </linearGradient>
+    <filter id="blurFilter" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="24" result="blur"/>
+    </filter>
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur2"/>
+    </filter>
+  </defs>
+  <!-- Background rounded rectangle -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- Outer ambient glow -->
+  <circle cx="256" cy="256" r="170" fill="url(#glow)" opacity="0.35" filter="url(#blurFilter)"/>
+  <!-- Orbital tech rings -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="url(#glow)" stroke-width="3" opacity="0.4" stroke-dasharray="12 16"/>
+  <circle cx="256" cy="256" r="130" fill="none" stroke="#38bdf8" stroke-width="2.5" opacity="0.5" stroke-dasharray="6 14"/>
+  <!-- Soundwave equalizer ticks around circle -->
+  <g opacity="0.75">
+    <line x1="256" y1="70" x2="256" y2="86" stroke="#fb7185" stroke-width="4" stroke-linecap="round"/>
+    <line x1="256" y1="426" x2="256" y2="442" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+    <line x1="70" y1="256" x2="86" y2="256" stroke="#fb7185" stroke-width="4" stroke-linecap="round"/>
+    <line x1="426" y1="256" x2="442" y2="256" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+    <line x1="125" y1="125" x2="138" y2="138" stroke="#ec4899" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="387" y1="387" x2="374" y2="374" stroke="#06b6d4" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="387" y1="125" x2="374" y2="138" stroke="#f43f5e" stroke-width="3.5" stroke-linecap="round"/>
+    <line x1="125" y1="387" x2="138" y2="374" stroke="#06b6d4" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+  <!-- Glowing central orb -->
+  <circle cx="256" cy="256" r="96" fill="url(#orbCore)" filter="url(#softGlow)"/>
+  <circle cx="256" cy="256" r="92" fill="url(#orbCore)"/>
+  <!-- Stylized Voice Wave / Sparkle Emblem -->
+  <path d="M 200 256 C 200 230, 230 200, 256 180 C 282 200, 312 230, 312 256 C 312 282, 282 312, 256 332 C 230 312, 200 282, 200 256 Z" fill="#ffffff" opacity="0.95"/>
+  <circle cx="256" cy="256" r="28" fill="#ffe4e6"/>
+  <!-- Little Sparkle Stars -->
+  <path d="M 330 160 Q 330 180 350 180 Q 330 180 330 200 Q 330 180 310 180 Q 330 180 330 160 Z" fill="#fbcfe8"/>
+  <path d="M 180 320 Q 180 335 195 335 Q 180 335 180 350 Q 180 335 165 335 Q 180 335 180 320 Z" fill="#bae6fd"/>
+</svg>

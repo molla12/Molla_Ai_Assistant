@@ -1,0 +1,6 @@
+{
+  "name": "Molla AI Assistant",
+  "description": "Real-time voice-to-voice and vision AI assistant powered by advanced Gemini voice models with visual input processing and automatic 97-language switching.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
