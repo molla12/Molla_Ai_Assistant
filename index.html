@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      (function() {
+        var origConsoleError = console.error;
+        console.error = function() {
+          var firstArg = arguments[0];
+          if (typeof firstArg === 'string' && (firstArg.indexOf('[vite]') !== -1 || firstArg.indexOf('failed to connect to websocket') !== -1)) {
+            return;
+          }
+          origConsoleError.apply(console, arguments);
+        };
+
+        // Fix GitHub Pages subpath: ensure trailing slash so relative assets resolve within repository path
+        var path = window.location.pathname;
+        if (path.length > 1 && !path.endsWith('/') && !path.split('/').pop().includes('.')) {
+          window.location.replace(path + '/' + window.location.search + window.location.hash);
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>Molla AI Assistant</title>
+    <meta name="description" content="Real-time voice-to-voice and vision AI assistant powered by advanced Gemini voice models with visual input processing and automatic 97-language switching." />
+    <meta property="og:title" content="Molla AI Assistant" />
+    <meta property="og:description" content="Real-time voice-to-voice and vision AI assistant powered by advanced Gemini voice models with visual input processing and automatic 97-language switching." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#07090e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Molla AI" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="shortcut icon" href="./favicon.ico" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      window.addEventListener('error', function(e) {
+        var banner = document.getElementById('molla-error-banner');
+        var btn = document.getElementById('molla-reload-btn');
+        if (banner) {
+          banner.style.display = 'block';
+          banner.textContent = 'Startup error: ' + (e.message || 'Script failed to run');
+        }
+        if (btn) btn.style.display = 'inline-block';
+      });
+      // Safety timer: if root still has the preloader after 4 seconds, show reload option
+      setTimeout(function() {
+        var sub = document.getElementById('molla-preloader-sub');
+        var btn = document.getElementById('molla-reload-btn');
+        if (sub && btn) {
+          sub.textContent = 'Starting Molla AI Assistant... If it takes long, tap below:';
+          btn.style.display = 'inline-block';
+        }
+      }, 4000);
+    </script>
+    <script type="module" crossorigin src="/Molla_Ai_Assistant/assets/index-CylzMDRR.js"></script>
+    <link rel="stylesheet" crossorigin href="/Molla_Ai_Assistant/assets/index-YiOxzjbd.css">
+  <link rel="manifest" href="/Molla_Ai_Assistant/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/Molla_Ai_Assistant/registerSW.js"></script></head>
+  <body style="margin:0;padding:0;background-color:#07090e;color:#f8fafc;">
+    <div id="root">
+      <div id="molla-preloader" style="position:fixed;inset:0;background:#07090e;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;z-index:99999;padding:24px;text-align:center;">
+        <div style="position:relative;width:64px;height:64px;margin-bottom:20px;">
+          <div style="position:absolute;inset:0;border-radius:50%;border:3px solid rgba(59,130,246,0.15);"></div>
+          <div style="position:absolute;inset:0;border-radius:50%;border:3px solid transparent;border-top-color:#3b82f6;border-right-color:#60a5fa;animation:molla-spin 0.9s cubic-bezier(0.4,0,0.2,1) infinite;"></div>
+          <div style="position:absolute;inset:6px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,0.3) 0%,rgba(7,9,14,0.9) 70%);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;color:#93c5fd;">M</div>
+        </div>
+        <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;color:#ffffff;margin-bottom:6px;">Molla AI Assistant</div>
+        <div id="molla-preloader-sub" style="font-size:13px;color:#94a3b8;max-width:280px;line-height:1.4;">Connecting neural engines...</div>
+        <div id="molla-error-banner" style="display:none;margin-top:20px;padding:12px 16px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#fca5a5;font-size:12px;max-width:340px;text-align:left;word-break:break-word;"></div>
+        <button id="molla-reload-btn" onclick="window.location.reload(true)" style="display:none;margin-top:16px;padding:9px 20px;background:#3b82f6;color:#ffffff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Hard Reload</button>
+      </div>
+      <style>
+        @keyframes molla-spin { to { transform: rotate(360deg); } }
+      </style>
+    </div>
+  </body>
+</html>
+

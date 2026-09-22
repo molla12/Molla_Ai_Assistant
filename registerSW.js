@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/Molla_Ai_Assistant/sw.js', { scope: '/Molla_Ai_Assistant/' })})}
